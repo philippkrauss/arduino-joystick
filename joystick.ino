@@ -27,11 +27,15 @@ typedef struct {
   bool e;
   bool f;
 } JoystickValues;
+int x, y;
+
+long count = 0;
 
 JoystickValues joystickValues;
 
 void setup() {
     Serial.begin(9600);
+
     pinMode(X_AXIS, INPUT);
     pinMode(Y_AXIS, INPUT);
     pinMode(BUTTON_A, INPUT);
@@ -43,13 +47,13 @@ void setup() {
     pinMode(BUTTON_JOSYSTICK, INPUT);
 
     radio.begin();
+    radio.setRetries(15, 15);
     radio.openWritingPipe(address);
     radio.setPALevel(RF24_PA_MIN);
     radio.stopListening();
 
     lcd.init();
     lcd.backlight();
-
 }
 
 void printButton(char* button, int value) {
@@ -59,53 +63,71 @@ void printButton(char* button, int value) {
   lcd.print(" ");
 }
 
-void loop() {
-    int x = analogRead(X_AXIS);
-    joystickValues.x = x - 517;
-    int y = analogRead(Y_AXIS);
-    joystickValues.y = y - 511;
-    joystickValues.axis = digitalRead(BUTTON_JOSYSTICK) == false;
-    joystickValues.a = digitalRead(BUTTON_A);
-    joystickValues.b = digitalRead(BUTTON_B);
-    joystickValues.c = digitalRead(BUTTON_C);
-    joystickValues.d = digitalRead(BUTTON_D);
-    joystickValues.e = digitalRead(BUTTON_E);
-    joystickValues.f = digitalRead(BUTTON_F);
+void readJoystick() {
+  x = analogRead(X_AXIS);
+  joystickValues.x = x - 517;
+  y = analogRead(Y_AXIS);
+  joystickValues.y = y - 511;
+  joystickValues.axis = digitalRead(BUTTON_JOSYSTICK) == false;
+  joystickValues.a = digitalRead(BUTTON_A);
+  joystickValues.b = digitalRead(BUTTON_B);
+  joystickValues.c = digitalRead(BUTTON_C);
+  joystickValues.d = digitalRead(BUTTON_D);
+  joystickValues.e = digitalRead(BUTTON_E);
+  joystickValues.f = digitalRead(BUTTON_F);
+}
 
-    lcd.setCursor(0,0);
-    lcd.print("Stick: ");
-    if (x < 1000) {
+void updateLcd() {
+  lcd.setCursor(0,0);
+  lcd.print("Stick: ");
+  if (x < 1000) {
     lcd.print(" ");
-    } 
-    if (x < 100) {
+  } 
+  if (x < 100) {
     lcd.print(" ");
+  }
+  if (x < 10) {
+    lcd.print(" ");
+  }
+  lcd.print(x);
+  lcd.print(",");
+  if (y < 1000) {
+    lcd.print(" ");
+  }
+  if (y < 100) {
+    lcd.print(" ");
+  }
+  if (y < 10) {
+    lcd.print(" ");
+  }
+  lcd.print(y);
+  lcd.print(" / ");
+  lcd.print(digitalRead(BUTTON_JOSYSTICK));
+  lcd.setCursor(0,1);
+  printButton("A", digitalRead(BUTTON_A));
+  printButton("B", digitalRead(BUTTON_B));
+  printButton("C", digitalRead(BUTTON_C));
+  printButton("D", digitalRead(BUTTON_D));
+  lcd.setCursor(0,2);
+  printButton("E", digitalRead(BUTTON_E));
+  printButton("F", digitalRead(BUTTON_F));
+  lcd.setCursor(0,3);
+  lcd.print(count / 10);
+}
+
+long lastTime = 0;
+
+void loop() {
+    long currentTime = millis();
+    if (currentTime - lastTime <= 5) {
+      return;
     }
-    if (x < 10) {
-    lcd.print(" ");
-    }
-    lcd.print(x);
-    lcd.print(",");
-    if (y < 1000) {
-    lcd.print(" ");
-    }
-    if (y < 100) {
-    lcd.print(" ");
-    }
-    if (y < 10) {
-    lcd.print(" ");
-    }
-    lcd.print(y);
-    lcd.print(" / ");
-    lcd.print(digitalRead(BUTTON_JOSYSTICK));
-    lcd.setCursor(0,1);
-    printButton("A", digitalRead(BUTTON_A));
-    printButton("B", digitalRead(BUTTON_B));
-    printButton("C", digitalRead(BUTTON_C));
-    printButton("D", digitalRead(BUTTON_D));
-    lcd.setCursor(0,2);
-    printButton("E", digitalRead(BUTTON_E));
-    printButton("F", digitalRead(BUTTON_F));
-    lcd.setCursor(0,3);
+    lastTime = currentTime;
+
+    count++;
+    readJoystick();
+    updateLcd();
 
     radio.write(&joystickValues, sizeof(JoystickValues));
+    radio.txStandBy();
 }
