@@ -4,7 +4,6 @@
 LiquidCrystal_I2C lcd(39, 16, 2);
 
 RF24 radio(9, 10);
-const uint64_t receiver_address = 0xA8A8E1F0C6LL;
 const byte address[6] = "00001";
 
 #define X_AXIS A0
@@ -35,8 +34,6 @@ long count = 0;
 JoystickValues joystickValues;
 
 void setup() {
-    Serial.begin(9600);
-
     pinMode(X_AXIS, INPUT);
     pinMode(Y_AXIS, INPUT);
     pinMode(BUTTON_A, INPUT);
@@ -49,24 +46,15 @@ void setup() {
 
     radio.begin();
     radio.setRetries(15, 15);
-    // radio.openWritingPipe(address);
-    radio.openWritingPipe(receiver_address);
+    radio.openWritingPipe(address);
     radio.enableDynamicPayloads();
-    // radio.setPayloadSize(sizeof(JoystickValues));
-    // radio.enableAckPayload();
+    radio.enableAckPayload();
+    radio.setAutoAck(true);
     radio.setPALevel(RF24_PA_MIN);
     radio.stopListening();
 
     lcd.init();
-    lcd.backlight();
-    
-}
-
-void printButton(char* button, int value) {
-  lcd.print(button);
-  lcd.print(": ");
-  lcd.print(value);
-  lcd.print(" ");
+    lcd.backlight(); 
 }
 
 void readJoystick() {
@@ -83,7 +71,8 @@ void readJoystick() {
   joystickValues.f = digitalRead(BUTTON_F);
 }
 
-char receivedData[17];
+char receivedData[33];
+
 bool newData = false;
 
 void sendAndReceive() {
@@ -91,33 +80,31 @@ void sendAndReceive() {
   result = radio.write(&joystickValues, sizeof(JoystickValues));
   if (result) {
     lcd.setCursor(0, 0);
-    lcd.print("success!!!");
     if (radio.isAckPayloadAvailable()) {
       radio.read(receivedData, sizeof(receivedData));
-      receivedData[16] = 0;
+      receivedData[32] = 0;
+      newData = true;
+    } else {
+      sprintf(receivedData, "NO ACKDATA                      ");
       newData = true;
     }
   } else {
-    lcd.setCursor(0, 0);
-    lcd.print("error");
+    sprintf(receivedData, "ERROR           NO CONNECTION   ");
+    newData = true;
   }
   radio.txStandBy();
 }
 
 int counttt = 0;
 void updateLcd() {
-  lcd.setCursor(0, 1);
-  lcd.print("Hello-");
-  lcd.print(sizeof(JoystickValues));
-  lcd.print("-");
-  lcd.print(counttt++);
   if (!newData) {
     return;
   }
-  lcd.print(count++);
   newData = false;
-  lcd.setCursor(0,0);
+  lcd.setCursor(0, 0);
   lcd.print(receivedData);
+  lcd.setCursor(0, 1);
+  lcd.print(&receivedData[16]);
 }
 
 long lastTime = 0;
