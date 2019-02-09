@@ -1,7 +1,7 @@
 #include <RF24.h>
-#include <LiquidCrystal_I2C.h> // Vorher hinzugefügte LiquidCrystal_I2C Bibliothek einbinden
+#include <LiquidCrystal_I2C.h>
 
-LiquidCrystal_I2C lcd(63, 20, 4); //Hier wird festgelegt um was für einen Display es sich handelt. In diesem Fall eines mit 16 Zeichen in 2 Zeilen und der HEX-Adresse 0x27. Für ein vierzeiliges I2C-LCD verwendet man den Code "LiquidCrystal_I2C lcd(0x27, 20, 4)" 
+LiquidCrystal_I2C lcd(39, 16, 2);
 
 RF24 radio(9, 10);
 const byte address[6] = "00001";
@@ -34,8 +34,6 @@ long count = 0;
 JoystickValues joystickValues;
 
 void setup() {
-    Serial.begin(9600);
-
     pinMode(X_AXIS, INPUT);
     pinMode(Y_AXIS, INPUT);
     pinMode(BUTTON_A, INPUT);
@@ -49,18 +47,14 @@ void setup() {
     radio.begin();
     radio.setRetries(15, 15);
     radio.openWritingPipe(address);
+    radio.enableDynamicPayloads();
+    radio.enableAckPayload();
+    radio.setAutoAck(true);
     radio.setPALevel(RF24_PA_MIN);
     radio.stopListening();
 
     lcd.init();
-    lcd.backlight();
-}
-
-void printButton(char* button, int value) {
-  lcd.print(button);
-  lcd.print(": ");
-  lcd.print(value);
-  lcd.print(" ");
+    lcd.backlight(); 
 }
 
 void readJoystick() {
@@ -77,57 +71,52 @@ void readJoystick() {
   joystickValues.f = digitalRead(BUTTON_F);
 }
 
+char receivedData[33];
+
+bool newData = false;
+
+void sendAndReceive() {
+  bool result;
+  result = radio.write(&joystickValues, sizeof(JoystickValues));
+  if (result) {
+    lcd.setCursor(0, 0);
+    if (radio.isAckPayloadAvailable()) {
+      radio.read(receivedData, sizeof(receivedData));
+      receivedData[32] = 0;
+      newData = true;
+    } else {
+      sprintf(receivedData, "NO ACKDATA                      ");
+      newData = true;
+    }
+  } else {
+    sprintf(receivedData, "ERROR           NO CONNECTION   ");
+    newData = true;
+  }
+  radio.txStandBy();
+}
+
+int counttt = 0;
 void updateLcd() {
-  lcd.setCursor(0,0);
-  lcd.print("Stick: ");
-  if (x < 1000) {
-    lcd.print(" ");
-  } 
-  if (x < 100) {
-    lcd.print(" ");
+  if (!newData) {
+    return;
   }
-  if (x < 10) {
-    lcd.print(" ");
-  }
-  lcd.print(x);
-  lcd.print(",");
-  if (y < 1000) {
-    lcd.print(" ");
-  }
-  if (y < 100) {
-    lcd.print(" ");
-  }
-  if (y < 10) {
-    lcd.print(" ");
-  }
-  lcd.print(y);
-  lcd.print(" / ");
-  lcd.print(digitalRead(BUTTON_JOSYSTICK));
-  lcd.setCursor(0,1);
-  printButton("A", digitalRead(BUTTON_A));
-  printButton("B", digitalRead(BUTTON_B));
-  printButton("C", digitalRead(BUTTON_C));
-  printButton("D", digitalRead(BUTTON_D));
-  lcd.setCursor(0,2);
-  printButton("E", digitalRead(BUTTON_E));
-  printButton("F", digitalRead(BUTTON_F));
-  lcd.setCursor(0,3);
-  lcd.print(count / 10);
+  newData = false;
+  lcd.setCursor(0, 0);
+  lcd.print(receivedData);
+  lcd.setCursor(0, 1);
+  lcd.print(&receivedData[16]);
 }
 
 long lastTime = 0;
 
 void loop() {
     long currentTime = millis();
-    if (currentTime - lastTime <= 5) {
+    if (currentTime - lastTime <= 150) {
       return;
     }
     lastTime = currentTime;
 
-    count++;
     readJoystick();
+    sendAndReceive();
     updateLcd();
-
-    radio.write(&joystickValues, sizeof(JoystickValues));
-    radio.txStandBy();
 }

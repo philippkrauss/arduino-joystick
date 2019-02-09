@@ -1,7 +1,7 @@
 # Arduino Make file. Refer to https://github.com/sudar/Arduino-Makefile
 
 BOARD_TAG    = uno
-MONITOR_PORT = /dev/cu.usbserial-14120
+MONITOR_PORT = /dev/cu.usbserial-14110
 
 USER_LIB_PATH=lib
 
